@@ -1,0 +1,123 @@
+"""
+Script de ingesta: extrae ejecuciones de Airflow (dag runs + task instances)
+vía su API REST y las guarda en Postgres (base de datos jct).
+"""
+
+import requests
+from requests.auth import HTTPBasicAuth
+import psycopg2
+from datetime import datetime
+
+AIRFLOW_URL = "http://localhost:18080/api/v1"
+AIRFLOW_USER = "admin"
+AIRFLOW_PASSWORD = "admin"
+
+DB_CONFIG = {
+    "host": "localhost",
+    "port": 5432,
+    "dbname": "jct",
+    "user": "airflow",
+    "password": "airflow",
+}
+
+
+def obtener_dag_runs(dag_id):
+    url = f"{AIRFLOW_URL}/dags/{dag_id}/dagRuns"
+    respuesta = requests.get(url, auth=HTTPBasicAuth(AIRFLOW_USER, AIRFLOW_PASSWORD))
+    respuesta.raise_for_status()
+    return respuesta.json()["dag_runs"]
+
+
+def obtener_task_instances(dag_id, run_id):
+    url = f"{AIRFLOW_URL}/dags/{dag_id}/dagRuns/{run_id}/taskInstances"
+    respuesta = requests.get(url, auth=HTTPBasicAuth(AIRFLOW_USER, AIRFLOW_PASSWORD))
+    respuesta.raise_for_status()
+    return respuesta.json()["task_instances"]
+
+
+def obtener_tags_dag(dag_id):
+    url = f"{AIRFLOW_URL}/dags/{dag_id}"
+    respuesta = requests.get(url, auth=HTTPBasicAuth(AIRFLOW_USER, AIRFLOW_PASSWORD))
+    respuesta.raise_for_status()
+    tags = [t["name"] for t in respuesta.json().get("tags", [])]
+    return tags
+
+
+def calcular_duracion(inicio, fin):
+    if not inicio or not fin:
+        return None
+    formato = "%Y-%m-%dT%H:%M:%S.%f%z" if "." in inicio else "%Y-%m-%dT%H:%M:%S%z"
+    try:
+        t_inicio = datetime.strptime(inicio, formato)
+        t_fin = datetime.strptime(fin, formato)
+        return (t_fin - t_inicio).total_seconds()
+    except ValueError:
+        return None
+
+
+def guardar_en_postgres(registros):
+    conexion = psycopg2.connect(**DB_CONFIG)
+    cursor = conexion.cursor()
+
+    for r in registros:
+        cursor.execute(
+            """
+            INSERT INTO job_executions
+                (dag_id, run_id, task_id, estado, fecha_inicio, fecha_fin,
+                 duracion_segundos, area, proyecto, mensaje_error)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (dag_id, run_id, task_id)
+            DO UPDATE SET
+                estado = EXCLUDED.estado,
+                fecha_inicio = EXCLUDED.fecha_inicio,
+                fecha_fin = EXCLUDED.fecha_fin,
+                duracion_segundos = EXCLUDED.duracion_segundos,
+                mensaje_error = EXCLUDED.mensaje_error,
+                extraido_en = NOW();
+            """,
+            (
+                r["dag_id"], r["run_id"], r["task_id"], r["estado"],
+                r["fecha_inicio"], r["fecha_fin"], r["duracion_segundos"],
+                r["area"], r["proyecto"], r["mensaje_error"],
+            ),
+        )
+
+    conexion.commit()
+    cursor.close()
+    conexion.close()
+    print(f"{len(registros)} registros guardados/actualizados en Postgres.")
+
+
+def main():
+    dag_id = "mi_primer_dag"
+    tags = obtener_tags_dag(dag_id)
+    area = tags[-1] if tags else "sin_area"
+    proyecto = dag_id
+
+    dag_runs = obtener_dag_runs(dag_id)
+    print(f"Encontradas {len(dag_runs)} corridas del DAG '{dag_id}'.")
+
+    registros = []
+    for run in dag_runs:
+        run_id = run["dag_run_id"]
+        tareas = obtener_task_instances(dag_id, run_id)
+
+        for tarea in tareas:
+            registros.append({
+                "dag_id": dag_id,
+                "run_id": run_id,
+                "task_id": tarea["task_id"],
+                "estado": tarea["state"],
+                "fecha_inicio": tarea["start_date"],
+                "fecha_fin": tarea["end_date"],
+                "duracion_segundos": calcular_duracion(tarea["start_date"], tarea["end_date"]),
+                "area": area,
+                "proyecto": proyecto,
+                "mensaje_error": None,
+            })
+
+    guardar_en_postgres(registros)
+
+
+if __name__ == "__main__":
+    main()
