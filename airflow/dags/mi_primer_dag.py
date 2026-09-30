@@ -35,7 +35,7 @@ with DAG(
     tarea_2 = PythonOperator(
         task_id="transformacion",
         python_callable=tarea_con_fallo_aleatorio,
-        op_kwargs={"nombre_tarea": "transformacion", "probabilidad_fallo": 0.9},
+        op_kwargs={"nombre_tarea": "transformacion", "probabilidad_fallo": 0.2},
     )
 
     tarea_3 = BashOperator(
