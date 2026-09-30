@@ -3,6 +3,7 @@ from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
 from datetime import datetime
 import random
+from utils_alertas import notificar_fallo_slack
 
 def tarea_con_fallo_aleatorio(nombre_tarea, probabilidad_fallo=0.3):
     print(f"Ejecutando {nombre_tarea}...")
@@ -21,6 +22,9 @@ with DAG(
     start_date=datetime(2026, 9, 1),
     catchup=False,
     tags=["practica", "jct", "area_finanzas"],
+    default_args={
+        "on_failure_callback": notificar_fallo_slack,
+    },
 ) as dag:
 
     tarea_1 = BashOperator(
@@ -31,7 +35,7 @@ with DAG(
     tarea_2 = PythonOperator(
         task_id="transformacion",
         python_callable=tarea_con_fallo_aleatorio,
-        op_kwargs={"nombre_tarea": "transformacion", "probabilidad_fallo": 0.2},
+        op_kwargs={"nombre_tarea": "transformacion", "probabilidad_fallo": 0.9},
     )
 
     tarea_3 = BashOperator(
