@@ -1,8 +1,10 @@
 """
 Script de ingesta: extrae ejecuciones de Airflow (dag runs + task instances)
 vía su API REST y las guarda en Postgres (base de datos jct).
+Para tareas fallidas, además extrae el mensaje de error desde los logs.
 """
 
+import re
 import requests
 from requests.auth import HTTPBasicAuth
 import psycopg2
@@ -41,6 +43,34 @@ def obtener_tags_dag(dag_id):
     respuesta.raise_for_status()
     tags = [t["name"] for t in respuesta.json().get("tags", [])]
     return tags
+
+
+def obtener_mensaje_error(dag_id, run_id, task_id, intento):
+    """
+    Descarga el log de una tarea fallida y extrae la línea de la excepción.
+    Devuelve None si no encuentra un mensaje claro.
+    """
+    url = f"{AIRFLOW_URL}/dags/{dag_id}/dagRuns/{run_id}/taskInstances/{task_id}/logs/{intento}"
+    headers = {"Accept": "text/plain"}
+    respuesta = requests.get(
+        url, auth=HTTPBasicAuth(AIRFLOW_USER, AIRFLOW_PASSWORD), headers=headers
+    )
+    if respuesta.status_code != 200:
+        return None
+
+    log_texto = respuesta.text
+
+    # Buscamos específicamente nuestra excepción personalizada
+    match = re.search(r"Exception: (.+)", log_texto)
+    if match:
+        return match.group(1).strip()
+
+    # Si no la encuentra, busca cualquier línea que empiece con "Error"
+    match = re.search(r"(Error:.+)", log_texto)
+    if match:
+        return match.group(1).strip()[:500]  # limitamos longitud
+
+    return None
 
 
 def calcular_duracion(inicio, fin):
@@ -98,11 +128,20 @@ def main():
     print(f"Encontradas {len(dag_runs)} corridas del DAG '{dag_id}'.")
 
     registros = []
+    fallos_procesados = 0
+
     for run in dag_runs:
         run_id = run["dag_run_id"]
         tareas = obtener_task_instances(dag_id, run_id)
 
         for tarea in tareas:
+            mensaje_error = None
+
+            if tarea["state"] == "failed":
+                intento = tarea.get("try_number", 1)
+                mensaje_error = obtener_mensaje_error(dag_id, run_id, tarea["task_id"], intento)
+                fallos_procesados += 1
+
             registros.append({
                 "dag_id": dag_id,
                 "run_id": run_id,
@@ -113,9 +152,10 @@ def main():
                 "duracion_segundos": calcular_duracion(tarea["start_date"], tarea["end_date"]),
                 "area": area,
                 "proyecto": proyecto,
-                "mensaje_error": None,
+                "mensaje_error": mensaje_error,
             })
 
+    print(f"Procesados {fallos_procesados} logs de tareas fallidas.")
     guardar_en_postgres(registros)
 
 
