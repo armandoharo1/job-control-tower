@@ -9,6 +9,7 @@ x-airflow-common: &airflow-common
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs
     - ./airflow/plugins:/opt/airflow/plugins
+    - ./ingesta:/opt/airflow/scripts
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     - postgres

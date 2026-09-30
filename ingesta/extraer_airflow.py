@@ -10,12 +10,12 @@ from requests.auth import HTTPBasicAuth
 import psycopg2
 from datetime import datetime
 
-AIRFLOW_URL = "http://localhost:18080/api/v1"
+AIRFLOW_URL = "http://airflow-webserver:8080/api/v1"
 AIRFLOW_USER = "admin"
 AIRFLOW_PASSWORD = "admin"
 
 DB_CONFIG = {
-    "host": "localhost",
+    "host": "postgres",
     "port": 5432,
     "dbname": "jct",
     "user": "airflow",
