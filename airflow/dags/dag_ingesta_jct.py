@@ -13,5 +13,5 @@ with DAG(
 
     ejecutar_ingesta = BashOperator(
         task_id="extraer_metricas",
-        bash_command="pip install requests psycopg2-binary --quiet && python /opt/airflow/scripts/extraer_airflow.py",
+        bash_command="pip install requests psycopg2-binary --quiet && python /opt/airflow/scripts/motor_ingesta.py",
     )
