@@ -13,6 +13,7 @@ from datetime import datetime
 AIRFLOW_URL = "http://airflow-webserver:8080/api/v1"
 AIRFLOW_USER = "admin"
 AIRFLOW_PASSWORD = "admin"
+TENANT_ID = "5f0af1ee-3d72-4f37-8aed-b5fd5a1903eb"  # Práctica Armando
 
 DB_CONFIG = {
     "host": "postgres",
@@ -93,9 +94,9 @@ def guardar_en_postgres(registros):
         cursor.execute(
             """
             INSERT INTO job_executions
-                (dag_id, run_id, task_id, estado, fecha_inicio, fecha_fin,
+                (tenant_id, dag_id, run_id, task_id, estado, fecha_inicio, fecha_fin,
                  duracion_segundos, area, proyecto, mensaje_error)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (dag_id, run_id, task_id)
             DO UPDATE SET
                 estado = EXCLUDED.estado,
@@ -106,7 +107,7 @@ def guardar_en_postgres(registros):
                 extraido_en = NOW();
             """,
             (
-                r["dag_id"], r["run_id"], r["task_id"], r["estado"],
+                TENANT_ID, r["dag_id"], r["run_id"], r["task_id"], r["estado"],
                 r["fecha_inicio"], r["fecha_fin"], r["duracion_segundos"],
                 r["area"], r["proyecto"], r["mensaje_error"],
             ),
