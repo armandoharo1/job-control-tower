@@ -15,3 +15,10 @@ with DAG(
         task_id="extraer_metricas",
         bash_command="pip install requests psycopg2-binary --quiet && python /opt/airflow/scripts/motor_ingesta.py",
     )
+
+    correlacionar = BashOperator(
+        task_id="correlacionar_incidentes",
+        bash_command="python /opt/airflow/scripts/core/incident_correlation.py",
+    )
+
+    ejecutar_ingesta >> correlacionar
