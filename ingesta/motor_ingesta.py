@@ -83,24 +83,29 @@ def procesar_fuente(conexion, fuente):
     config = fuente["config_conexion"]
     conector = ConnectorFactory.crear(fuente["tipo_orquestador"], config)
 
-    dag_id = DAG_ID_PRACTICA  # fase siguiente: esto vendra de config
-    tags = conector.obtener_tags(dag_id)
+    entity_id = config.get("entity_id")
+    if not entity_id:
+        print(f"  Fuente sin 'entity_id' configurado, se omite.")
+        return
+
+    tags = conector.obtener_tags(entity_id)
     area = tags[-1] if tags else "sin_area"
 
-    ejecuciones = conector.obtener_ejecuciones(dag_id)
+    ejecuciones = conector.obtener_ejecuciones(entity_id)
     print(f"  {len(ejecuciones)} registros de ejecucion encontrados.")
 
     for ejecucion in ejecuciones:
         if ejecucion["estado"] == "failed":
+            run_id_para_log = ejecucion.get("_run_id_tarea", ejecucion["run_id"])
             ejecucion["mensaje_error"] = conector.obtener_mensaje_error(
-                dag_id, ejecucion["run_id"], ejecucion["task_id"], ejecucion["intento"]
+                entity_id, run_id_para_log, ejecucion["task_id"], ejecucion["intento"]
             )
         ejecucion["duracion_segundos"] = calcular_duracion(
             ejecucion["fecha_inicio"], ejecucion["fecha_fin"]
         )
 
     guardar_en_postgres(
-        conexion, fuente["tenant_id"], fuente["id"], dag_id, dag_id, area, ejecuciones
+        conexion, fuente["tenant_id"], fuente["id"], entity_id, entity_id, area, ejecuciones
     )
     print(f"  {len(ejecuciones)} registros guardados para tenant {fuente['tenant_id']}.")
 
