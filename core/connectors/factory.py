@@ -7,6 +7,7 @@ que tipos de orquestador existen.
 from core.connectors.base import OrchestratorConnector
 from core.connectors.airflow_connector import AirflowConnector
 from core.connectors.databricks_connector import DatabricksConnector
+from core.connectors.control_m_connector import ControlMConnector
 
 
 class ConnectorFactory:
@@ -29,3 +30,4 @@ class ConnectorFactory:
 
 ConnectorFactory.registrar("airflow", AirflowConnector)
 ConnectorFactory.registrar("databricks", DatabricksConnector)
+ConnectorFactory.registrar("control_m", ControlMConnector)

@@ -94,15 +94,21 @@ def procesar_fuente(conexion, fuente):
     ejecuciones = conector.obtener_ejecuciones(entity_id)
     print(f"  {len(ejecuciones)} registros de ejecucion encontrados.")
 
+
     for ejecucion in ejecuciones:
         if ejecucion["estado"] == "failed":
-            run_id_para_log = ejecucion.get("_run_id_tarea", ejecucion["run_id"])
-            ejecucion["mensaje_error"] = conector.obtener_mensaje_error(
-                entity_id, run_id_para_log, ejecucion["task_id"], ejecucion["intento"]
-            )
+            if ejecucion.get("_mensaje_error"):
+                ejecucion["mensaje_error"] = ejecucion["_mensaje_error"]
+            else:
+                run_id_para_log = ejecucion.get("_run_id_tarea", ejecucion["run_id"])
+                ejecucion["mensaje_error"] = conector.obtener_mensaje_error(
+                    entity_id, run_id_para_log, ejecucion["task_id"], ejecucion["intento"]
+                )
         ejecucion["duracion_segundos"] = calcular_duracion(
             ejecucion["fecha_inicio"], ejecucion["fecha_fin"]
         )
+
+    
 
     guardar_en_postgres(
         conexion, fuente["tenant_id"], fuente["id"], entity_id, entity_id, area, ejecuciones

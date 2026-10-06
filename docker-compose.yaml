@@ -12,6 +12,7 @@ x-airflow-common: &airflow-common
     - ./airflow/plugins:/opt/airflow/plugins
     - ./ingesta:/opt/airflow/scripts
     - ./core:/opt/airflow/scripts/core
+    - ./control_m_sim:/opt/airflow/scripts/control_m_sim
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     - postgres
